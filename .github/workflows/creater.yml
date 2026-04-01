@@ -1,0 +1,43 @@
+name: Global Crawler Bot
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: Run Scraper
+        run: python creater.py
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 1. سحب التغييرات البعيدة أولاً مع ميزة autostash للتعامل مع أي ملفات محلية
+          git pull --rebase --autostash origin main
+          
+          # 2. إضافة الملفات الجديدة التي أنشأها السكربت
+          git add .
+          
+          # 3. الالتزام والرفع
+          git commit -m "Auto-generate content [skip ci]" || echo "No changes to commit"
+          git push origin main
