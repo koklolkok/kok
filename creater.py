@@ -5,150 +5,165 @@ import re
 from datetime import datetime, timedelta
 
 # ==============================================================================
-# GENERATOR PRO - GITHUB ACTIONS OPTIMIZED
-# - تم تحسين الأداء ليعمل ضمن بيئة GitHub Actions بدون توقف (Hang)
-# - دعم القوالب المتعددة (test.html, test1.html, test2.html)
-# - إنشاء مجلدات فرعية وتوليد 200 صفحة في الدورة الواحدة
+# GENERATOR PRO - CLEAN SLUG & SMART FOLDER MANAGEMENT
+# - روابط نظيفة تماماً بدون أرقام عشوائية في النهاية
+# - إدارة المجلدات: الحد 500 ملف لكل مجلد فرعي
+# - إنشاء مجلدين متداخلين لكل مجموعة ملفات
+# - توليد لغوي منفصل (عربي/إنجليزي) مع تحديث التاريخ لحظياً
 # ==============================================================================
 
 class ContinuousGenerator:
-    def __init__(self):
-        self.templates = {}
-        self.template_names = ["test.html", "test1.html", "test2.html"]
+    def __init__(self, template_file="test.html"):
+        self.template_file = template_file
         self.keywords_ar = []
         self.keywords_en = []
-        self.max_files_per_folder = 500
+        self.template_content = ""
+        self.max_files_per_folder = 500  # الحد الأقصى لكل مجلد فرعي
+        
         self.emojis = ["🔥", "🎥", "🔞", "😱", "✅", "🌟", "📺", "🎬", "✨", "💎", "⚡"]
         
-        self.load_all_templates()
+        self.load_template()
         self.load_keywords()
 
-    def load_all_templates(self):
-        """تحميل القوالب مع معالجة حالة عدم الوجود"""
-        for t_name in self.template_names:
-            if os.path.exists(t_name):
-                try:
-                    with open(t_name, "r", encoding="utf-8") as f:
-                        self.templates[t_name] = f.read()
-                    print(f"[*] Template {t_name} loaded.")
-                except Exception as e:
-                    print(f"[!] Error reading {t_name}: {e}")
-            else:
-                # محتوى افتراضي بسيط لتجنب توقف السكربت
-                self.templates[t_name] = "<html><head><title>{{TITLE}}</title></head><body><h1>{{TITLE}}</h1><p>{{DESCRIPTION}}</p>{{INTERNAL_LINKS}}</body></html>"
-                print(f"[!] Warning: {t_name} not found. Using fallback layout.")
+    def load_template(self):
+        if os.path.exists(self.template_file):
+            try:
+                with open(self.template_file, "r", encoding="utf-8") as f:
+                    self.template_content = f.read()
+            except Exception as e:
+                print(f"[!] Error reading template: {e}")
+        else:
+            self.template_content = "<html><head><title>{{TITLE}}</title></head><body>{{DESCRIPTION}}<br>Date: {{DATE}}<br>{{INTERNAL_LINKS}}</body></html>"
 
     def load_keywords(self):
-        """تحميل الكلمات المفتاحية مع التحقق من وجود الملفات"""
-        ar_file = "keywords_ar.txt"
-        en_file = "keywords_en.txt"
+        ar_files = ["keywords_ar.txt"]
+        en_files = ["keywords_en.txt"]
         
-        if os.path.exists(ar_file):
-            with open(ar_file, "r", encoding="utf-8") as f:
-                self.keywords_ar = [l.strip() for l in f if l.strip()]
+        for file in ar_files:
+            if os.path.exists(file):
+                with open(file, "r", encoding="utf-8") as f:
+                    self.keywords_ar.extend([l.strip() for l in f if l.strip()])
+                    
+        for file in en_files:
+            if os.path.exists(file):
+                with open(file, "r", encoding="utf-8") as f:
+                    self.keywords_en.extend([l.strip() for l in f if l.strip()])
         
-        if os.path.exists(en_file):
-            with open(en_file, "r", encoding="utf-8") as f:
-                self.keywords_en = [l.strip() for l in f if l.strip()]
-
-        # إذا كانت القوائم فارغة، نضع كلمات افتراضية لمنع الحلقات اللانهائية
-        if not self.keywords_ar: self.keywords_ar = ["محتوى", "تقني", "تحديث"]
-        if not self.keywords_en: self.keywords_en = ["tech", "update", "news"]
-        
-        print(f"[*] Keywords Loaded: AR({len(self.keywords_ar)}), EN({len(self.keywords_en)})")
+        print(f"[*] Loaded {len(self.keywords_ar)} Arabic and {len(self.keywords_en)} English keywords.")
 
     def build_text(self, min_words, max_words, mode="ar"):
         target_length = random.randint(min_words, max_words)
         source = self.keywords_ar if mode == "ar" else self.keywords_en
+        if not source: source = ["Keyword", "Trending", "Video"]
         words = []
-        
-        # حماية من الحلقات اللانهائية: محاولة بحد أقصى 1000 مرة
-        attempts = 0
-        while len(words) < target_length and attempts < 1000:
+        while len(words) < target_length:
             chunk = random.choice(source).split()
             words.extend(chunk)
-            attempts += 1
-            
         return " ".join(words[:target_length])
 
     def get_target_path(self, total_count):
-        paths = []
+        """إنشاء مجلدين متداخلين عشوائياً لكل 500 ملف تقريباً"""
+        base_root = "."
         files_remaining = total_count
-        while files_remaining > 0:
-            d1 = ''.join(random.choices(string.ascii_lowercase, k=3))
-            d2 = ''.join(random.choices(string.ascii_lowercase, k=3))
-            full_path = os.path.join(d1, d2)
-            os.makedirs(full_path, exist_ok=True)
-            paths.append(full_path)
-            files_remaining -= self.max_files_per_folder
-        return paths
+        paths = []
 
-    def run_single_cycle(self, count=200):
+        while files_remaining > 0:
+            # إنشاء مجلدين متداخلين
+            first_folder = ''.join(random.choices(string.ascii_lowercase, k=3))
+            second_folder = ''.join(random.choices(string.ascii_lowercase, k=3))
+            full_path = os.path.join(base_root, first_folder, second_folder)
+            os.makedirs(full_path, exist_ok=True)
+
+            paths.append(full_path)
+            # نحسب كم ملف يمكن وضعه هنا
+            chunk = min(files_remaining, self.max_files_per_folder)
+            files_remaining -= chunk
+
+        return paths  # قائمة بكل المسارات المتاحة
+
+    def run_single_cycle(self, count=1500):
         folder_paths = self.get_target_path(count)
+        print(f"[*] Target folders: {folder_paths}")
+
         generated_files = []
         half = count // 2
         modes = (['ar'] * half) + (['en'] * (count - half))
         random.shuffle(modes)
 
         base_time = datetime.utcnow()
-        file_index = 0
-        
-        # تجهيز البيانات
-        for folder in folder_paths:
-            chunk_size = min(len(modes) - file_index, self.max_files_per_folder)
-            for i in range(chunk_size):
-                current_mode = modes[file_index]
-                file_time = base_time - timedelta(seconds=random.randint(0, 86400)) # تاريخ عشوائي خلال يوم
 
-                title_text = self.build_text(5, 10, mode=current_mode)
-                display_title = f"{random.choice(self.emojis)} {title_text} {random.choice(self.emojis)}"
-                
-                clean_name = re.sub(r'[^\w\s-]', '', title_text.lower())
+        # توليد الملفات
+        file_index = 0
+        for folder in folder_paths:
+            current_chunk = min(len(modes) - file_index, self.max_files_per_folder)
+            for i in range(current_chunk):
+                current_mode = modes[file_index]
+                file_time = base_time - timedelta(seconds=random.randint(0, 3600), microseconds=random.randint(0, 999999))
+
+                formatted_date_iso = file_time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                formatted_date_sql = file_time.strftime("%Y-%m-%d %H:%M:%S")
+
+                title_len = random.choice([5, 7, 9, 11])
+                raw_title = self.build_text(title_len, title_len + 2, mode=current_mode)
+                display_title = f"{random.choice(self.emojis)} {raw_title} {random.choice(self.emojis)}"
+
+                clean_name = re.sub(r'[^\w\s-]', '', raw_title.lower())
                 slug = re.sub(r'[-\s]+', '-', clean_name).strip('-')[:80]
-                if not slug: slug = ''.join(random.choices(string.ascii_lowercase, k=10))
-                
+                filename = f"{slug}.html"
+
                 generated_files.append({
                     "display_title": display_title,
-                    "filename": f"{slug}.html",
-                    "desc": self.build_text(100, 250, mode=current_mode),
+                    "filename": filename,
+                    "desc": self.build_text(120, 350, mode=current_mode),
                     "keys": self.build_text(3, 8, mode=current_mode),
                     "mode": current_mode,
-                    "date_iso": file_time.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
-                    "date_sql": file_time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "folder": folder,
-                    "template": random.choice(self.template_names)
+                    "date_iso": formatted_date_iso,
+                    "date_sql": formatted_date_sql,
+                    "folder": folder
                 })
+
                 file_index += 1
 
         # كتابة الملفات
         for i, file_data in enumerate(generated_files):
-            template_content = self.templates.get(file_data['template'], "")
-            
-            # روابط داخلية ذكية
-            links_sample = random.sample(generated_files, min(len(generated_files), 5))
-            links_html = "<ul>"
-            for lnk in links_sample:
-                # الرابط يؤدي للمجلد الصحيح
-                full_link = f"/{lnk['folder']}/{lnk['filename']}"
-                links_html += f"<li><a href='{full_link}'>{lnk['display_title']}</a></li>"
-            links_html += "</ul>"
+            content = self.template_content
 
-            content = template_content.replace("{{TITLE}}", file_data['display_title'])
+            other_files = [f for j, f in enumerate(generated_files) if i != j]
+            same_lang_files = [f for f in other_files if f['mode'] == file_data['mode']]
+            source_for_links = same_lang_files if len(same_lang_files) >= 3 else other_files
+            links_sample = random.sample(source_for_links, min(len(source_for_links), random.randint(3, 6)))
+
+            links_html = "<div class='internal-links'><ul>"
+            for link in links_sample:
+                links_html += f"<li><a href='{link['filename']}'>{link['display_title']}</a></li>"
+            links_html += "</ul></div>"
+
+            content = content.replace("{{TITLE}}", file_data['display_title'])
             content = content.replace("{{DESCRIPTION}}", file_data['desc'])
             content = content.replace("{{KEYWORDS}}", file_data['keys'])
             content = content.replace("{{DATE}}", file_data['date_iso'])
             content = content.replace("{{DATE_SQL}}", file_data['date_sql'])
-            content = content.replace("{{INTERNAL_LINKS}}", links_html)
+
+            content = re.sub(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})', file_data['date_iso'], content)
+            content = re.sub(r'\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}', file_data['date_sql'], content)
+
+            if "{{INTERNAL_LINKS}}" in content:
+                content = content.replace("{{INTERNAL_LINKS}}", links_html)
+            else:
+                content += f"\n{links_html}"
 
             try:
-                target_file = os.path.join(file_data['folder'], file_data['filename'])
-                with open(target_file, "w", encoding="utf-8") as f:
+                file_path = os.path.join(file_data['folder'], file_data['filename'])
+                if os.path.exists(file_path):
+                    file_path = file_path.replace(".html", f"-{random.choice(string.ascii_lowercase)}.html")
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(content)
             except Exception as e:
-                print(f"[!] Error writing file: {e}")
+                print(f"[!] Failed to write file: {e}")
+        
+        print(f"✅ Created {count} clean files across {len(folder_paths)} folder(s).")
 
-        print(f"✅ Successfully generated {len(generated_files)} pages.")
 
 if __name__ == "__main__":
-    generator = ContinuousGenerator()
-    generator.run_single_cycle(count=200)
+    bot = ContinuousGenerator()
+    bot.run_single_cycle(count=500)
